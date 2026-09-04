@@ -58,5 +58,33 @@ class Attention(nn.Module):
         batch_size,src_seq_length,hidden_dim=encoder_hidden_states.size()
         batch_size,tgt_seq_length,hidden_dim=decoder_hidden_states.size()
 
-        
+        w_q,w_kv=self.qkv_proj.weight.split(hidden_dim,2*hidden_dim)
+
+        k,v=F.linear(encoder_hidden_states,w_kv).reshape(batch_size,src_seq_length,self.num_heads,self.head_dim).chunk(2,dim=-1)
+        q=F.linear(decoder_hidden_states,w_q).reshape(batch_size,tgt_seq_length,self.num_heads,self.head_dim)
+        return q,k,v
+
+    def scaled_dot_product_attention(self,q:torch.tensor,
+                                     k:torch.tensor,
+                                     v:torch.tensor,
+                                     attention_mask:Optional[torch.tensor]=None,
+                                     future_mask:Optional[torch.tensor]=None):
+        batch_size,num_heads,seq_length,head_dim=q.size()
+        logits=torch.matmul(q,k.transpose(-2,-1))/math.sqrt(head_dim)
+        if attention_mask is not None:
+            logits=self.mask_logits(logits,attention_mask,future_mask)
+        attention=F.softmax(logits,dim=-1)
+        values=torch.matmul(attention,v)
+        return values,attention
+    
+    @staticmethod
+    def mask_logits(self,logits:torch.tensor,
+                    attention_mask:Optional[torch.tensor]=None,
+                    future_mask:Optional[torch.tensor]=None):
+        masked_logits=logits
+        if attention_mask is not None:
+            masked_logits=logits.masked_fill(attention_mask==0,float('-inf'))
+        if future_mask is not None:
+            masked_logits=logits.masked_fill(future_mask==0,float('-inf'))
+        return masked_logits
         
