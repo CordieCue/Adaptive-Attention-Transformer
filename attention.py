@@ -26,7 +26,7 @@ class Attention(nn.Module):
     def forward(self,
                 x:torch.tensor,
                 encoder_hidden_states:Optional[torch.tensor]=None,
-                attention_mask:Optional[torch.tensor]=None,
+                src_mask:Optional[torch.tensor]=None,
                 future_mask:Optional[torch.tensor]=None):
             
         batch_size, seq_length, hidden_dim=x.size()
@@ -34,13 +34,14 @@ class Attention(nn.Module):
             q,k,v=self.self_attention(x)
         else:
             q,k,v=self.cross_attention(x,encoder_hidden_states)
-        values,attention=self.scaled_dot_product_attention(q,k,v,attention_mask,future_mask)
+
+        values,attention=self.scaled_dot_product_attention(q,k,v,src_mask,future_mask)
 
         q=q.permute(0,2,1,3)
         k=k.permute(0,2,1,3)   
         v=v.permute(0,2,1,3)
 
-        values,attention=self.scaled_dot_product_attention(q,k,v,attention_mask,future_mask)
+        values,attention=self.scaled_dot_product_attention(q,k,v,src_mask,future_mask)
         values=values.permute(0,2,1,3).reshape(batch_size,seq_length,self.hidden_dim)
 
         return self.o_proj(values)
@@ -67,23 +68,23 @@ class Attention(nn.Module):
     def scaled_dot_product_attention(self,q:torch.tensor,
                                      k:torch.tensor,
                                      v:torch.tensor,
-                                     attention_mask:Optional[torch.tensor]=None,
+                                     src_mask:Optional[torch.tensor]=None,
                                      future_mask:Optional[torch.tensor]=None):
         batch_size,num_heads,seq_length,head_dim=q.size()
         logits=torch.matmul(q,k.transpose(-2,-1))/math.sqrt(head_dim)
-        if attention_mask is not None:
-            logits=self.mask_logits(logits,attention_mask,future_mask)
+        if src_mask is not None:
+            logits=self.mask_logits(logits,src_mask,future_mask)
         attention=F.softmax(logits,dim=-1)
         values=torch.matmul(attention,v)
         return values,attention
     
     @staticmethod
     def mask_logits(self,logits:torch.tensor,
-                    attention_mask:Optional[torch.tensor]=None,
+                    src_mask:Optional[torch.tensor]=None,
                     future_mask:Optional[torch.tensor]=None):
         masked_logits=logits
-        if attention_mask is not None:
-            masked_logits=logits.masked_fill(attention_mask==0,float('-inf'))
+        if src_mask is not None:
+            masked_logits=logits.masked_fill(src_mask==0,float('-inf'))
         if future_mask is not None:
             masked_logits=logits.masked_fill(future_mask==0,float('-inf'))
         return masked_logits
