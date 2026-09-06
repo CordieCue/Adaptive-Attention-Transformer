@@ -21,10 +21,11 @@ class TransformerDecoder(nn.Module):
                  num_layers: int,
                  vocab_size: int,
                  dropout_p: float,
+                 max_decoding_len: int,
                  tie_output_embedding: bool = True):
         super().__init__()
         self.embed = embedding
-        self.positional_encoding=SinEncoding(hidden_dim,max_len=5000)
+        self.positional_encoding=SinEncoding(hidden_dim,max_len=max_decoding_len)
         self.hidden_dim=hidden_dim
         self.Dropout=nn.Dropout(dropout_p)
         self.decoder_blocks=nn.ModuleList(
